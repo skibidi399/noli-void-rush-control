@@ -4,9 +4,6 @@ local RunService = game:GetService("RunService")
 local Players = game:GetService("Players")
 
 local LocalPlayer = Players.LocalPlayer
-local Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
-local Humanoid = Character:WaitForChild("Humanoid")
-local HumanoidRootPart = Character:WaitForChild("HumanoidRootPart")
 local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
 local voidrushcontrol = false
 
@@ -19,19 +16,29 @@ screenGui.Parent = PlayerGui
 
 -- Create Button
 local toggleButton = Instance.new("TextButton")
-toggleButton.Size = UDim2.new(0, 100, 0, 50)
+toggleButton.Size = UDim2.new(0, 150, 0, 50)
 toggleButton.Position = UDim2.new(0, 10, 0, 10) -- top-left corner
 toggleButton.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
 toggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
 toggleButton.Font = Enum.Font.SourceSansBold
 toggleButton.TextSize = 20
 toggleButton.Text = "Void rush = OFF"
+toggleButton.TextScaled = true
 toggleButton.Parent = screenGui
 
 -- Toggle state
 local toggled = false
 
 -- Function to toggle
+local function setupCharacter(character)
+    local Humanoid = character:WaitForChild("Humanoid")
+    local HumanoidRootPart = character:WaitForChild("HumanoidRootPart")
+
+    -- You can store them in globals used by your override logic
+    _G.Humanoid = Humanoid
+    _G.HumanoidRootPart = HumanoidRootPart
+end
+
 local function onToggle()
     toggled = not toggled
     if toggled then
@@ -47,6 +54,10 @@ local function onToggle()
     end
 end
 
+if LocalPlayer.Character then
+    setupCharacter(LocalPlayer.Character)
+end
+
 -- Connect button click
 toggleButton.MouseButton1Click:Connect(onToggle)
 
@@ -58,31 +69,40 @@ local isOverrideActive = false
 local connection
 
 local function startOverride()
+
+    
     if isOverrideActive then return end
     isOverrideActive = true
 
     -- Connect a loop to force the character to move forward
     connection = RunService.RenderStepped:Connect(function()
-        -- Forcefully set WalkSpeed and AutoRotate on every frame
-        Humanoid.WalkSpeed = ORIGINAL_DASH_SPEED
-        Humanoid.AutoRotate = false
-        
-        local direction = HumanoidRootPart.CFrame.LookVector
-        local horizontalDirection = Vector3.new(direction.X, 0, direction.Z).Unit
-        
-        -- Use Humanoid.Move to directly move the character
-        Humanoid:Move(horizontalDirection)
+        local humanoid = _G.Humanoid
+        local rootPart = _G.HumanoidRootPart
+        if not humanoid or not rootPart then return end
+    
+        humanoid.WalkSpeed = ORIGINAL_DASH_SPEED
+        humanoid.AutoRotate = false
+    
+        local direction = rootPart.CFrame.LookVector
+        local horizontal = Vector3.new(direction.X, 0, direction.Z)
+        if horizontal.Magnitude > 0 then
+            humanoid:Move(horizontal.Unit)
+        end
     end)
 end
 
 local function stopOverride()
+    
     if not isOverrideActive then return end
     isOverrideActive = false
-
+    
+    local humanoid = _G.Humanoid
+    local rootPart = _G.HumanoidRootPart
+    
     -- Restore original settings
-    Humanoid.WalkSpeed = 16 -- Or whatever your default walk speed is
-    Humanoid.AutoRotate = true
-    Humanoid:Move(Vector3.new(0, 0, 0)) -- Stop the character from moving
+    humanoid.WalkSpeed = 16 -- Or whatever your default walk speed is
+    humanoid.AutoRotate = true
+    humanoid:Move(Vector3.new(0, 0, 0)) -- Stop the character from moving
     
     if connection then
         connection:Disconnect()
@@ -92,13 +112,18 @@ end
 
 -- Main loop to detect when to activate and deactivate the override
 RunService.RenderStepped:Connect(function()
-    if not voidrushcontrol then return end
+    if voidrushcontrol == false then return end
     
-    local voidRushState = Character:GetAttribute("VoidRushState")
+    local char = _G.Humanoid and _G.Humanoid.Parent
+    local voidRushState = char and char:GetAttribute("VoidRushState")
 
     if voidRushState == "Dashing" then
         startOverride()
     else
         stopOverride()
     end
+end)
+
+LocalPlayer.CharacterAdded:Connect(function(character)
+    setupCharacter(character)
 end)

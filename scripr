@@ -1,85 +1,104 @@
--- noli void rush control with GUI toggle
+--noli void rush control
 
 local RunService = game:GetService("RunService")
 local Players = game:GetService("Players")
-local StarterGui = game:GetService("StarterGui")
 
 local LocalPlayer = Players.LocalPlayer
 local Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
 local Humanoid = Character:WaitForChild("Humanoid")
 local HumanoidRootPart = Character:WaitForChild("HumanoidRootPart")
+local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
+local voidrushcontrol = false
 
--- Original speed
+
+-- Create ScreenGui
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "ToggleUI"
+screenGui.ResetOnSpawn = false
+screenGui.Parent = PlayerGui
+
+-- Create Button
+local toggleButton = Instance.new("TextButton")
+toggleButton.Size = UDim2.new(0, 100, 0, 50)
+toggleButton.Position = UDim2.new(0, 10, 0, 10) -- top-left corner
+toggleButton.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+toggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+toggleButton.Font = Enum.Font.SourceSansBold
+toggleButton.TextSize = 20
+toggleButton.Text = "Void rush = OFF"
+toggleButton.Parent = screenGui
+
+-- Toggle state
+local toggled = false
+
+-- Function to toggle
+local function onToggle()
+    toggled = not toggled
+    if toggled then
+        toggleButton.Text = "Void rush = ON"
+        print("Toggled On")
+        voidrushcontrol = true
+        toggleButton.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
+    else
+        toggleButton.Text = "Void rush = OFF"
+        print("Toggled Off")
+        voidrushcontrol = false
+        toggleButton.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+    end
+end
+
+-- Connect button click
+toggleButton.MouseButton1Click:Connect(onToggle)
+
+
+-- The speed of the original Void Rush from your config
 local ORIGINAL_DASH_SPEED = 60
-local DEFAULT_WALK_SPEED = 16
 
--- State variables
 local isOverrideActive = false
 local connection
 
--- Function to start override
 local function startOverride()
     if isOverrideActive then return end
     isOverrideActive = true
 
+    -- Connect a loop to force the character to move forward
     connection = RunService.RenderStepped:Connect(function()
+        -- Forcefully set WalkSpeed and AutoRotate on every frame
         Humanoid.WalkSpeed = ORIGINAL_DASH_SPEED
         Humanoid.AutoRotate = false
-
+        
         local direction = HumanoidRootPart.CFrame.LookVector
         local horizontalDirection = Vector3.new(direction.X, 0, direction.Z).Unit
-
+        
+        -- Use Humanoid.Move to directly move the character
         Humanoid:Move(horizontalDirection)
     end)
 end
 
--- Function to stop override
 local function stopOverride()
     if not isOverrideActive then return end
     isOverrideActive = false
 
-    Humanoid.WalkSpeed = DEFAULT_WALK_SPEED
+    -- Restore original settings
+    Humanoid.WalkSpeed = 16 -- Or whatever your default walk speed is
     Humanoid.AutoRotate = true
-    Humanoid:Move(Vector3.new(0, 0, 0))
-
+    Humanoid:Move(Vector3.new(0, 0, 0)) -- Stop the character from moving
+    
     if connection then
         connection:Disconnect()
         connection = nil
     end
 end
 
--- GUI Setup
-local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "VoidRushToggleGUI"
-ScreenGui.ResetOnSpawn = false
-ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
-
-local ToggleButton = Instance.new("TextButton")
-ToggleButton.Size = UDim2.new(0, 150, 0, 50)
-ToggleButton.Position = UDim2.new(0, 20, 0, 20)
-ToggleButton.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-ToggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-ToggleButton.Text = "Void Rush: OFF"
-ToggleButton.Parent = ScreenGui
-
-ToggleButton.MouseButton1Click:Connect(function()
-    if isOverrideActive then
-        stopOverride()
-        ToggleButton.Text = "Void Rush: OFF"
-    else
-        startOverride()
-        ToggleButton.Text = "Void Rush: ON"
-    end
-end)
-
--- Optional: automatically follow VoidRushState
+-- Main loop to detect when to activate and deactivate the override
 RunService.RenderStepped:Connect(function()
+    if not voidrushcontrol then return end
+    
     local voidRushState = Character:GetAttribute("VoidRushState")
-    if voidRushState == "Dashing" and not isOverrideActive then
+
+    if voidRushState == "Dashing" then
         startOverride()
-        ToggleButton.Text = "Void Rush: ON"
-    elseif voidRushState ~= "Dashing" and isOverrideActive then
+    else
         stopOverride()
-        ToggleButton.Text = "Void Rush: OFF"
     end
 end)
